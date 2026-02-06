@@ -206,6 +206,62 @@ Then: run the written output through the AI writing tell checklist before publis
 
 ---
 
+## Model Usage: Which Model for Each Step
+
+The V3 stablecoin run used Opus for everything, including 4 research agents that ran 15-18 minutes each doing web searches. That's expensive and unnecessary. The research agents compile facts — they don't need deep reasoning. Reserve the expensive model for the steps where reasoning quality actually matters.
+
+### Model assignments
+
+| Step                          | Model                                                      | Why                                                                                                                                                                                                                           | Cost vs all-Opus                                                |
+| ----------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1. SATURATE (research agents) | **Sonnet**                                                 | Web search + fact compilation. Follows instructions well, returns structured data. Doesn't need creative reasoning.                                                                                                           | ~70% savings per agent. With 4 agents, this is the biggest win. |
+| 2. FIND ANOMALIES             | **Sonnet**                                                 | Pattern matching against specific heuristics (contradictions, wrong-direction numbers, gaps). Structured checklist work.                                                                                                      | ~70% savings                                                    |
+| 3. CROSS-REFERENCE            | **Opus**                                                   | This is where the insight emerges. Connecting data across tracks requires the strongest associative reasoning. The difference between V2 ("framework application") and V3 ("genuine insight") happened here. Don't cheap out. | Baseline                                                        |
+| 4. ARTICULATE MECHANISM       | **Opus**                                                   | Writing the causal chain with precision. Each link in the chain must be logically tight. Sonnet tends to handwave at the connections.                                                                                         | Baseline                                                        |
+| 5. PREDICT                    | **Sonnet**                                                 | Given a clear mechanism from Step 4, deriving predictions is structured work. Prompt with the mechanism and ask for specific/falsifiable/timebound predictions. Opus only if predictions feel generic.                        | ~70% savings                                                    |
+| 6. VALIDATE                   | **Haiku** for mechanical checks, **Sonnet** for pre-mortem | Kolmogorov test (remove each data point, check if insight holds) is mechanical. Template test (swap domain, check if it breaks) is mechanical. Pre-mortem requires moderate reasoning.                                        | ~85% savings on mechanical checks                               |
+| 7. AI TELL CLEANUP            | **Haiku**                                                  | Scan for banned words, count em-dashes, flag "not X, but Y" patterns, check section length uniformity. Pure checklist.                                                                                                        | ~85% savings                                                    |
+| 8. FINAL WRITING              | **Opus**                                                   | Voice, rhythm, asymmetric structure, deliberate imperfection. This is where model quality shows in the output.                                                                                                                | Baseline                                                        |
+
+### Practical implementation in Claude Code
+
+```
+# Step 1: Launch research agents with Sonnet (not Opus)
+Task(subagent_type="general-purpose", model="sonnet", prompt="Research [track]...")
+
+# Step 2: Anomaly detection with Sonnet
+Task(subagent_type="general-purpose", model="sonnet", prompt="Read these research outputs. Flag anomalies: contradictions, unexpected connections, numbers moving wrong direction, gaps between narrative and data. Return as simple factual statements, no interpretation...")
+
+# Step 3-4: Cross-reference and mechanism with Opus (default, or explicit)
+# Do this in the main conversation thread, not a subagent.
+# The main thread has all research context loaded.
+# Opus is the default model for the main thread.
+
+# Step 5: Predictions with Sonnet
+Task(subagent_type="general-purpose", model="sonnet", prompt="Given this mechanism: [paste mechanism]. Generate 4-5 falsifiable predictions. Each must name a specific entity, specific action, specific timeframe...")
+
+# Step 6-7: Validation and tell cleanup with Haiku
+Task(subagent_type="general-purpose", model="haiku", prompt="Run these validation checks on the following insight: [paste]. For each check, return PASS or FAIL with explanation...")
+Task(subagent_type="general-purpose", model="haiku", prompt="Scan this text for AI writing tells. Check for: negative parallelism ('not X, but Y'), aphorisms, em-dash count, section length uniformity, banned words from this list: [paste ban list]...")
+
+# Step 8: Final writing stays in main Opus thread
+```
+
+### Cost estimate comparison
+
+For a run like the stablecoin analysis (4 research agents + synthesis + validation):
+
+| Configuration                                                 | Estimated cost | Quality                                                                                                                                       |
+| ------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| All Opus (what V3 did)                                        | ~$15-20        | Overkill on research, good on synthesis                                                                                                       |
+| Optimized (Sonnet research, Opus synthesis, Haiku validation) | ~$5-7          | Same insight quality. Research agents return same facts. Synthesis stays Opus.                                                                |
+| All Sonnet                                                    | ~$3-5          | Research fine. Synthesis noticeably weaker — likely produces V2-quality output (framework application, not genuine insight). Not recommended. |
+| All Haiku                                                     | ~$1-2          | Research misses nuance. Synthesis fails. Don't.                                                                                               |
+
+The sweet spot: **Sonnet for Steps 1-2, Opus for Steps 3-4 and 8, Sonnet for Step 5, Haiku for Steps 6-7.** Roughly 3x cheaper than all-Opus with no quality loss on the insight itself.
+
+---
+
 ## Appendix: The Stablecoin Case Study (What Each Step Produced)
 
 ### Step 1 output: Four research tracks
