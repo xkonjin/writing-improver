@@ -1,0 +1,91 @@
+phases:
+  - name: saturate
+    description: "Parallel research across 5 tracks"
+    model: claude-sonnet-4-5-20250929
+    parallelizable: true
+    tracks: 5
+
+  - name: anomalies
+    description: "Identify anomalies in research data"
+    model: claude-sonnet-4-5-20250929
+    parallelizable: false
+
+  - name: forced_impasse
+    description: "Remove load-bearing assumption (Tier 2+)"
+    model: claude-opus-4-6
+    tier_minimum: 2
+
+  - name: cross_reference
+    description: "Find cross-track connections"
+    model: claude-opus-4-6
+    parallelizable: false
+
+  - name: bisociate
+    description: "Foreign-domain parallels (Tier 2+)"
+    model: claude-opus-4-6
+    tier_minimum: 2
+
+  - name: debate
+    description: "Multi-agent hypothesis debate (Tier 3)"
+    model: claude-opus-4-6
+    agents: 3
+    tier_minimum: 3
+
+  - name: mechanism
+    description: "Articulate causal chain"
+    model: claude-opus-4-6
+    parallelizable: false
+
+  - name: predict
+    description: "Generate falsifiable predictions"
+    model: claude-sonnet-4-5-20250929
+    parallelizable: false
+
+  - name: validate
+    description: "Kolmogorov test + template test + pre-mortem"
+    model: claude-haiku-4-5-20251001
+    parallelizable: true
+
+  - name: disorder
+    description: "Break organized research into discovery order"
+    model: claude-opus-4-6
+    parallelizable: false
+
+  - name: write
+    description: "Draft with 12 structural rules"
+    model: claude-opus-4-6
+    parallelizable: false
+
+  - name: structural_scan
+    description: "Structural AI tell detection"
+    model: python
+    parallelizable: true
+
+  - name: vocabulary_scan
+    description: "Vocabulary and voice compliance"
+    model: python
+    parallelizable: true
+
+  - name: revision
+    description: "Rewrite flagged sections"
+    model: claude-opus-4-6
+    max_iterations: 3
+
+  - name: platform_format
+    description: "Newsletter, LinkedIn, X thread"
+    model: claude-sonnet-4-5-20250929
+    parallelizable: true
+
+tiers:
+  1:
+    name: "Quick"
+    cost_estimate: "$5-8"
+    skip_phases: [forced_impasse, bisociate, debate]
+  2:
+    name: "Deep"
+    cost_estimate: "$12-18"
+    skip_phases: [debate]
+  3:
+    name: "Maximum"
+    cost_estimate: "$20-30"
+    skip_phases: []
