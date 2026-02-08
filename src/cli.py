@@ -62,10 +62,16 @@ def scan(file: str):
     """Run quality scanners on a draft."""
     text = Path(file).read_text()
     thresholds = load_quality_thresholds()
+    st = thresholds.get("structural", {})
+    anti = thresholds.get("anti_ai", {})
+    voice = thresholds.get("voice", {})
 
     structural = scan_structural(text)
     vocab = scan_vocabulary(text)
     burstiness = compute_burstiness(text)
+
+    s_score = structural.score(st)
+    v_score = vocab.score(thresholds)
 
     table = Table(title=f"Quality Scan: {file}")
     table.add_column("Metric")
@@ -73,64 +79,60 @@ def scan(file: str):
     table.add_column("Status")
 
     # Structural metrics
-    table.add_row(
-        "Structural Score",
-        f"{structural.score(thresholds):.1f}/10",
-        _status(structural.score(thresholds) >= 7),
-    )
+    table.add_row("Structural Score", f"{s_score:.1f}/10", _status(s_score >= 7))
     table.add_row(
         "Sentence Length CV",
         f"{structural.sentence_length_cv:.2f}",
-        _status(structural.sentence_length_cv >= 0.35),
+        _status(structural.sentence_length_cv >= st.get("sentence_length_cv", {}).get("min", 0.35)),
     )
     table.add_row(
         "Paragraph Word Std",
         f"{structural.paragraph_word_std:.1f}",
-        _status(structural.paragraph_word_std >= 35),
+        _status(structural.paragraph_word_std >= st.get("paragraph_word_std", {}).get("min", 20)),
     )
     table.add_row(
         "Single-Sentence Paras",
         str(structural.single_sentence_paragraphs),
-        _status(structural.single_sentence_paragraphs >= 3),
+        _status(structural.single_sentence_paragraphs >= st.get("single_sentence_paragraphs", {}).get("min", 3)),
     )
     table.add_row(
         "Formal Transitions/1k",
         f"{structural.formal_transitions_per_1k:.1f}",
-        _status(structural.formal_transitions_per_1k <= 2.5),
+        _status(structural.formal_transitions_per_1k <= st.get("formal_transitions_per_1k", {}).get("max", 2.5)),
     )
     table.add_row(
         "Section Ratio",
         f"{structural.section_ratio:.1f}",
-        _status(2.0 <= structural.section_ratio <= 5.0),
+        _status(
+            st.get("section_ratio", {}).get("min", 2.0)
+            <= structural.section_ratio
+            <= st.get("section_ratio", {}).get("max", 12.0)
+        ),
     )
 
     # Vocabulary metrics
-    table.add_row(
-        "Vocabulary Score",
-        f"{vocab.score(thresholds):.1f}/10",
-        _status(vocab.score(thresholds) >= 7),
-    )
+    table.add_row("Vocabulary Score", f"{v_score:.1f}/10", _status(v_score >= 7))
     table.add_row(
         "Banned Words",
         str(vocab.banned_word_count),
-        _status(vocab.banned_word_count == 0),
+        _status(vocab.banned_word_count <= anti.get("banned_words", {}).get("max", 2)),
     )
     table.add_row(
         "Conjunction Starts",
         str(vocab.conjunction_starts),
-        _status(vocab.conjunction_starts >= 5),
+        _status(vocab.conjunction_starts >= voice.get("conjunction_starts", {}).get("min", 5)),
     )
     table.add_row(
         "Fragments",
         str(vocab.fragment_count),
-        _status(vocab.fragment_count >= 3),
+        _status(vocab.fragment_count >= voice.get("fragments", {}).get("min", 1)),
     )
 
     # Burstiness
     table.add_row(
         "Burstiness",
         f"{burstiness:.2f}",
-        _status(burstiness >= 0.5),
+        _status(burstiness >= anti.get("burstiness_score", {}).get("min", 0.3)),
     )
 
     console.print(table)

@@ -120,7 +120,9 @@ class PipelineOrchestrator:
         vocab = scan_vocabulary(article)
         burstiness = compute_burstiness(article)
 
-        gate.scores["structural"] = structural.score(self.thresholds)
+        gate.scores["structural"] = structural.score(
+            self.thresholds.get("structural", {})
+        )
         gate.scores["vocabulary"] = vocab.score(self.thresholds)
         gate.scores["burstiness"] = burstiness
 
