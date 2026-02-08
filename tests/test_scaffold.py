@@ -86,8 +86,8 @@ def test_quality_thresholds_structural(quality_thresholds):
 
 def test_quality_thresholds_anti_ai(quality_thresholds):
     anti_ai = quality_thresholds["anti_ai"]
-    assert anti_ai["banned_words"]["max"] == 0
-    assert anti_ai["burstiness_score"]["min"] == 0.5
+    assert anti_ai["banned_words"]["max"] == 2
+    assert anti_ai["burstiness_score"]["min"] == 0.3
 
 
 def test_article_fixtures_load(article_02, article_03, article_04):
