@@ -57,10 +57,13 @@ def test_empty_text():
 
 @pytest.mark.asyncio
 async def test_verify_claims_mock():
-    mock_response = '{"claims": [{"claim": "test", "verifiable": true, "has_date": true, "potentially_stale": false, "has_source": true}]}'
+    mock_response = (
+        '{"claims": [{"claim": "test", "verifiable": true, "has_date": true, '
+        '"potentially_stale": false, "has_source": true}]}'
+    )
 
-    with patch("src.quality.data_verifier.BaseAgent") as MockAgent:
-        instance = MockAgent.return_value
+    with patch("src.quality.data_verifier.BaseAgent") as mock_agent:
+        instance = mock_agent.return_value
         instance.call = AsyncMock(return_value=mock_response)
         result = await verify_claims("Circle paid $908 million in 2024.")
         assert result.claims_checked >= 1

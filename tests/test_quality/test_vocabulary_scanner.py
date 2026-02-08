@@ -4,7 +4,9 @@ from src.quality.vocabulary_scanner import scan_vocabulary
 def test_no_banned_words_article_02(article_02):
     result = scan_vocabulary(article_02)
     # Good articles should have very few banned words
-    assert result.banned_word_count < 3, f"Article 02 has {result.banned_word_count} banned words: {result.banned_words_found}"
+    assert result.banned_word_count < 3, (
+        f"Article 02 has {result.banned_word_count} banned words: {result.banned_words_found}"
+    )
 
 
 def test_conjunction_starts_human(article_02):

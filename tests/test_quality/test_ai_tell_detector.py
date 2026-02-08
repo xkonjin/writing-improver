@@ -12,13 +12,20 @@ def test_signposting_detection():
 
 
 def test_no_signposting_in_human_text():
-    text = "The number that caught my eye was $908 million. That's what Circle paid Coinbase in 2024. I spent the week trying to figure out why."
+    text = (
+        "The number that caught my eye was $908 million. "
+        "That's what Circle paid Coinbase in 2024. "
+        "I spent the week trying to figure out why."
+    )
     result = detect_ai_tells_regex(text)
     assert result.signposting_count == 0
 
 
 def test_summarizing_conclusion():
-    text = "Some content here. " * 50 + "In conclusion, we've seen that the data clearly shows a trend toward consolidation."
+    text = (
+        "Some content here. " * 50
+        + "In conclusion, we've seen that the data clearly shows a trend toward consolidation."
+    )
     result = detect_ai_tells_regex(text)
     assert result.summarizing_conclusion is True
 
@@ -88,10 +95,16 @@ def test_article_04_has_tells(article_04):
 
 @pytest.mark.asyncio
 async def test_llm_detection_mock():
-    mock_response = '{"signposting": {"count": 2, "examples": ["In this section"]}, "parallelism": {"detected": false, "examples": []}, "summarizing_conclusion": false, "performative_introspection": {"count": 0, "examples": []}, "data_density_issues": []}'
+    mock_response = (
+        '{"signposting": {"count": 2, "examples": ["In this section"]}, '
+        '"parallelism": {"detected": false, "examples": []}, '
+        '"summarizing_conclusion": false, '
+        '"performative_introspection": {"count": 0, "examples": []}, '
+        '"data_density_issues": []}'
+    )
 
-    with patch("src.quality.ai_tell_detector.BaseAgent") as MockAgent:
-        instance = MockAgent.return_value
+    with patch("src.quality.ai_tell_detector.BaseAgent") as mock_agent:
+        instance = mock_agent.return_value
         instance.call = AsyncMock(return_value=mock_response)
         result = await detect_ai_tells_llm("Test text here.")
         assert result.signposting_count >= 2

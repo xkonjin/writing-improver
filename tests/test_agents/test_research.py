@@ -41,8 +41,8 @@ def test_research_result_total_words():
 async def test_research_single_track():
     mock_response = "Fact 1: Circle paid $908M. " * 50
 
-    with patch("src.agents.research.BaseAgent") as MockAgent:
-        instance = MockAgent.return_value
+    with patch("src.agents.research.BaseAgent") as mock_agent:
+        instance = mock_agent.return_value
         instance.call = AsyncMock(return_value=mock_response)
         instance.usage = MagicMock(input_tokens=500, output_tokens=1000, calls=1)
 
@@ -58,8 +58,8 @@ async def test_research_single_track():
 async def test_research_all_tracks():
     mock_response = "Research data here with facts and figures. " * 100
 
-    with patch("src.agents.research.BaseAgent") as MockAgent:
-        instance = MockAgent.return_value
+    with patch("src.agents.research.BaseAgent") as mock_agent:
+        instance = mock_agent.return_value
         instance.call = AsyncMock(return_value=mock_response)
         instance.usage = MagicMock(input_tokens=500, output_tokens=1000, calls=1)
 
@@ -75,8 +75,8 @@ async def test_research_all_tracks():
 async def test_research_custom_tracks():
     mock_response = "Custom track research. " * 50
 
-    with patch("src.agents.research.BaseAgent") as MockAgent:
-        instance = MockAgent.return_value
+    with patch("src.agents.research.BaseAgent") as mock_agent:
+        instance = mock_agent.return_value
         instance.call = AsyncMock(return_value=mock_response)
         instance.usage = MagicMock(input_tokens=500, output_tokens=1000, calls=1)
 

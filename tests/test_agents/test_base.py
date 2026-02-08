@@ -40,13 +40,13 @@ def test_agent_result_structure():
 
 @pytest.mark.asyncio
 async def test_base_agent_call():
-    with patch("src.agents.base.anthropic.AsyncAnthropic") as MockClient:
+    with patch("src.agents.base.anthropic.AsyncAnthropic") as mock_client:
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="Hello from Claude")]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
-        instance = MockClient.return_value
+        instance = mock_client.return_value
         instance.messages.create = AsyncMock(return_value=mock_response)
 
         agent = BaseAgent(model="claude-haiku-4-5-20251001")
@@ -60,13 +60,13 @@ async def test_base_agent_call():
 
 @pytest.mark.asyncio
 async def test_base_agent_tracks_cumulative_usage():
-    with patch("src.agents.base.anthropic.AsyncAnthropic") as MockClient:
+    with patch("src.agents.base.anthropic.AsyncAnthropic") as mock_client:
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="response")]
         mock_response.usage.input_tokens = 100
         mock_response.usage.output_tokens = 50
 
-        instance = MockClient.return_value
+        instance = mock_client.return_value
         instance.messages.create = AsyncMock(return_value=mock_response)
 
         agent = BaseAgent()

@@ -1,7 +1,6 @@
 from click.testing import CliRunner
 
 from src.cli import cli
-from src.config import load_pipeline_config, load_quality_thresholds
 
 
 def test_cli_help():
