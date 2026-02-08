@@ -1,7 +1,16 @@
+import asyncio
+from pathlib import Path
+
 import click
 from rich.console import Console
+from rich.table import Table
 
-from src.config import load_pipeline_config
+from src.config import load_pipeline_config, load_quality_thresholds
+from src.orchestrator import PipelineOrchestrator
+from src.quality.burstiness import compute_burstiness
+from src.quality.structural_scanner import scan_structural
+from src.quality.vocabulary_scanner import scan_vocabulary
+from src.storage.content_store import ContentStore
 
 console = Console()
 
@@ -9,37 +18,171 @@ console = Console()
 @click.group()
 @click.version_option(version="0.1.0")
 def cli():
-    """Writing Improver: Multi-agent content pipeline with Kolmogorov complexity enforcement."""
+    """Writing Improver: multi-agent content pipeline."""
 
 
 @cli.command()
 @click.argument("topic")
-@click.option("--tier", type=click.IntRange(1, 3), default=1, help="Pipeline tier (1=quick, 2=deep, 3=maximum)")
-@click.option("--resume-from", type=str, default=None, help="Resume from a specific phase")
-def run(topic: str, tier: int, resume_from: str | None):
+@click.option(
+    "--tier",
+    type=click.IntRange(1, 3),
+    default=1,
+    help="Pipeline tier (1=quick, 2=deep, 3=maximum)",
+)
+def run(topic: str, tier: int):
     """Run the full content pipeline on a topic."""
     config = load_pipeline_config()
-    console.print(f"[bold]Pipeline:[/bold] Tier {tier} for '{topic}'")
-    console.print(f"[dim]Phases: {len(config.get('phases', []))}[/dim]")
-    if resume_from:
-        console.print(f"[dim]Resuming from: {resume_from}[/dim]")
-    console.print("[yellow]Pipeline not yet implemented. See PR 11.[/yellow]")
+    tier_info = config["tiers"][tier]
+    console.print(f"[bold]Pipeline:[/bold] {tier_info['name']} (Tier {tier})")
+    console.print(f"[dim]Estimated cost: {tier_info['cost_estimate']}[/dim]")
+    console.print(f"[bold]Topic:[/bold] {topic}")
+
+    orch = PipelineOrchestrator(tier=tier)
+    state = asyncio.run(orch.run_full(topic))
+
+    # Print results
+    cost = state.usage.estimated_cost("claude-opus-4-6")
+    console.print("\n[green bold]Pipeline complete![/green bold]")
+    console.print(f"Phases: {len(state.completed_phases)}")
+    console.print(f"API calls: {state.usage.calls}")
+    console.print(f"Cost: ${cost:.2f}")
+
+    if state.scores:
+        table = Table(title="Quality Scores")
+        table.add_column("Metric")
+        table.add_column("Score", justify="right")
+        for k, v in state.scores.items():
+            table.add_row(k, f"{v:.1f}")
+        console.print(table)
 
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=True))
 def scan(file: str):
     """Run quality scanners on a draft."""
-    console.print(f"[bold]Scanning:[/bold] {file}")
-    console.print("[yellow]Quality scanners not yet implemented. See PR 2-3.[/yellow]")
+    text = Path(file).read_text()
+    thresholds = load_quality_thresholds()
+
+    structural = scan_structural(text)
+    vocab = scan_vocabulary(text)
+    burstiness = compute_burstiness(text)
+
+    table = Table(title=f"Quality Scan: {file}")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_column("Status")
+
+    # Structural metrics
+    table.add_row(
+        "Structural Score",
+        f"{structural.score(thresholds):.1f}/10",
+        _status(structural.score(thresholds) >= 7),
+    )
+    table.add_row(
+        "Sentence Length CV",
+        f"{structural.sentence_length_cv:.2f}",
+        _status(structural.sentence_length_cv >= 0.35),
+    )
+    table.add_row(
+        "Paragraph Word Std",
+        f"{structural.paragraph_word_std:.1f}",
+        _status(structural.paragraph_word_std >= 35),
+    )
+    table.add_row(
+        "Single-Sentence Paras",
+        str(structural.single_sentence_paragraphs),
+        _status(structural.single_sentence_paragraphs >= 3),
+    )
+    table.add_row(
+        "Formal Transitions/1k",
+        f"{structural.formal_transitions_per_1k:.1f}",
+        _status(structural.formal_transitions_per_1k <= 2.5),
+    )
+    table.add_row(
+        "Section Ratio",
+        f"{structural.section_ratio:.1f}",
+        _status(2.0 <= structural.section_ratio <= 5.0),
+    )
+
+    # Vocabulary metrics
+    table.add_row(
+        "Vocabulary Score",
+        f"{vocab.score(thresholds):.1f}/10",
+        _status(vocab.score(thresholds) >= 7),
+    )
+    table.add_row(
+        "Banned Words",
+        str(vocab.banned_word_count),
+        _status(vocab.banned_word_count == 0),
+    )
+    table.add_row(
+        "Conjunction Starts",
+        str(vocab.conjunction_starts),
+        _status(vocab.conjunction_starts >= 5),
+    )
+    table.add_row(
+        "Fragments",
+        str(vocab.fragment_count),
+        _status(vocab.fragment_count >= 3),
+    )
+
+    # Burstiness
+    table.add_row(
+        "Burstiness",
+        f"{burstiness:.2f}",
+        _status(burstiness >= 0.5),
+    )
+
+    console.print(table)
+
+    if structural.issues:
+        console.print("\n[bold]Issues:[/bold]")
+        for issue in structural.issues:
+            console.print(f"  - {issue}")
 
 
 @cli.command(name="quality-check")
 @click.argument("file", type=click.Path(exists=True))
 def quality_check(file: str):
-    """Run full quality gate check on a file."""
-    console.print(f"[bold]Quality check:[/bold] {file}")
-    console.print("[yellow]Quality gates not yet implemented. See PR 2-3.[/yellow]")
+    """Run full quality gate check (pass/fail)."""
+    text = Path(file).read_text()
+    orch = PipelineOrchestrator(tier=1)
+    gate = orch.run_quality_scan(text)
+
+    if gate.passed:
+        console.print("[green bold]PASSED[/green bold] all quality gates")
+    else:
+        console.print("[red bold]FAILED[/red bold] quality gates:")
+        for f in gate.failures:
+            console.print(f"  [red]- {f}[/red]")
+
+    if gate.scores:
+        for k, v in gate.scores.items():
+            console.print(f"  {k}: {v:.1f}")
+
+
+@cli.command(name="list-runs")
+def list_runs():
+    """List previous pipeline runs."""
+    store = ContentStore()
+    runs = store.list_runs()
+    if not runs:
+        console.print("[dim]No runs found.[/dim]")
+        return
+
+    table = Table(title="Pipeline Runs")
+    table.add_column("Timestamp")
+    table.add_column("Topic")
+    table.add_column("Tier")
+    table.add_column("Cost")
+    for r in runs:
+        table.add_row(
+            r.get("timestamp", "?"),
+            r.get("topic", "?"),
+            str(r.get("tier", "?")),
+            f"${r.get('cost_usd', 0):.2f}",
+        )
+    console.print(table)
 
 
 @cli.group()
@@ -86,6 +229,10 @@ def facts_add(claim: str, source: str, date: str):
     """Add a fact to the database."""
     console.print(f"[bold]Adding fact:[/bold] {claim}")
     console.print("[yellow]Facts database not yet implemented. See PR 14.[/yellow]")
+
+
+def _status(passed: bool) -> str:
+    return "[green]PASS[/green]" if passed else "[red]FAIL[/red]"
 
 
 if __name__ == "__main__":
