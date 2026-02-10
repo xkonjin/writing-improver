@@ -6,8 +6,13 @@ No narrative structure. Pure mechanism discovery.
 
 import asyncio
 import json
+import os
+from dotenv import load_dotenv
 from src.agents.openrouter_swarm import OpenRouterSwarm
 from datetime import datetime
+
+# Load environment variables from .env file
+load_dotenv()
 
 async def main():
     """Run bottom-up swarm for Coinbase Super Bowl article."""
@@ -17,9 +22,27 @@ async def main():
     print("=" * 70)
     print(f"Started: {datetime.now().isoformat()}\n")
     
-    # Initialize swarm with API key
-    api_key = "your-openrouter-api-key-here"
-    swarm = OpenRouterSwarm(api_key=api_key)
+    # Initialize swarm with API key from environment only (never hardcode!)
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    
+    if not api_key:
+        print("❌ OPENROUTER_API_KEY not found in environment variables")
+        print("\n🔧 TO FIX THIS:")
+        print("1. Get an API key from https://openrouter.ai/keys")
+        print("2. Create a .env file in this directory with:")
+        print("   OPENROUTER_API_KEY=sk-or-v1-your-key-here")
+        print("3. Or export it in your shell:")
+        print("   export OPENROUTER_API_KEY=sk-or-v1-your-key-here")
+        return
+    
+    print(f"🔑 Using API key: {api_key[:20]}...{api_key[-10:] if len(api_key) > 30 else '[short key]'}")
+    
+    try:
+        swarm = OpenRouterSwarm(api_key=api_key)
+    except ValueError as e:
+        print(f"❌ Configuration Error: {e}")
+        print("\n🔧 Check that your API key is valid at https://openrouter.ai/keys")
+        return
     
     # Define the research target
     topic = """Why did the Coinbase Super Bowl 2026 ad trigger collective booing?

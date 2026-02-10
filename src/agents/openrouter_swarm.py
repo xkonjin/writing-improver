@@ -22,29 +22,54 @@ class SwarmResult:
 class OpenRouterSwarm:
     """Multi-agent swarm using OpenRouter API."""
     
-    # Model pool for diversity - updated with working OpenRouter IDs
+    # Model pool for diversity - updated with latest 2026 models
     MODELS = {
         "premium": [
+            "anthropic/claude-opus-4.5",  # Latest Opus model
+            "moonshotai/kimi-k2.5",       # New frontier model - beats Opus on many tasks
+            "openai/gpt-5.2",              # Latest GPT model
             "anthropic/claude-3.5-sonnet",
-            "openai/gpt-4-turbo",
-            "openai/gpt-4o",
         ],
         "fast": [
+            "deepseek/deepseek-v3.2",      # 1/100th cost of frontier models
             "anthropic/claude-3.5-haiku",
             "mistralai/mistral-large-2407",
             "meta-llama/llama-3.1-70b-instruct",
         ],
         "specialized": [
-            "deepseek/deepseek-chat",
-            "google/gemini-pro-1.5",
+            "google/gemini-3-pro",          # Latest Gemini
+            "minimax/m2.1",                 # Specialized for agents
             "cohere/command-r-plus",
+            "devstral/devstral-2",          # Code-specialized
         ]
     }
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not self.api_key:
-            raise ValueError("OpenRouter API key required")
+            raise ValueError(
+                "OpenRouter API key required. Get one from https://openrouter.ai/keys\n"
+                "Set OPENROUTER_API_KEY environment variable or pass api_key parameter."
+            )
+        
+        # Validate key format
+        if not self.api_key.startswith("sk-or-v1-"):
+            print(f"⚠️  Warning: API key doesn't match expected OpenRouter format (sk-or-v1-...)")
+            print(f"   Current key: {self.api_key[:20]}...")
+    
+    async def test_api_key(self) -> bool:
+        """Test if the API key is valid."""
+        try:
+            result = await self.call_model(
+                "anthropic/claude-3.5-sonnet",
+                "Test",
+                "Say 'test' if you can read this",
+                temperature=0.1,
+                max_tokens=10
+            )
+            return not result.error
+        except Exception:
+            return False
     
     async def call_model(
         self, 
@@ -66,6 +91,8 @@ class OpenRouterSwarm:
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/writing-improver",
+                        "X-Title": "Writing Improver OpenRouter Swarm"
                     },
                     json={
                         "model": model,
@@ -79,6 +106,17 @@ class OpenRouterSwarm:
                 )
                 
                 result = response.json()
+                
+                # Check for API errors first
+                if response.status_code != 200:
+                    error_msg = f"HTTP {response.status_code}: {result.get('error', {}).get('message', 'Unknown error')}"
+                    print(f"❌ OpenRouter API Error: {error_msg}")
+                    return SwarmResult(
+                        agent_name="API-Error",
+                        model=model,
+                        content="",
+                        error=error_msg
+                    )
                 
                 if "choices" in result:
                     return SwarmResult(
@@ -267,6 +305,26 @@ class OpenRouterSwarm:
     
     async def run_full_swarm(self, topic: str) -> Dict[str, Any]:
         """Run the complete swarm pipeline."""
+        
+        # Phase 0: Validate API key
+        print("Phase 0: Validating API key...")
+        key_valid = await self.test_api_key()
+        if not key_valid:
+            error_msg = (
+                "❌ OpenRouter API key is invalid/expired.\n"
+                "🔧 Fix: Get a new key from https://openrouter.ai/keys\n"
+                f"📋 Current key: {self.api_key[:20]}...{self.api_key[-10:]}\n"
+                "💡 Update OPENROUTER_API_KEY environment variable with new key."
+            )
+            print(error_msg)
+            return {
+                "research": [],
+                "synthesis": SwarmResult("Error", "none", error_msg, error=error_msg),
+                "final": error_msg,
+                "tokens_used": 0
+            }
+        
+        print("✅ API key validated successfully!")
         
         # Phase 1: Research
         print("Phase 1: Research swarm...")

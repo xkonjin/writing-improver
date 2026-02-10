@@ -3,11 +3,21 @@
 
 import asyncio
 import httpx
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 async def test_openrouter():
     """Test if OpenRouter API works."""
     
-    api_key = "your-openrouter-api-key-here"
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    
+    if not api_key:
+        print("❌ OPENROUTER_API_KEY not found in environment variables")
+        print("Set it with: export OPENROUTER_API_KEY=sk-or-v1-your-key-here")
+        return
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
