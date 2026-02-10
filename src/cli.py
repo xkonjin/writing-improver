@@ -1,4 +1,7 @@
 import asyncio
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import click
@@ -6,6 +9,8 @@ from rich.console import Console
 from rich.table import Table
 
 from src.config import load_pipeline_config, load_quality_thresholds
+from src.distribution.api import DistributionAPI
+from src.distribution.state import Platform, PublishStatus
 from src.orchestrator import PipelineOrchestrator
 from src.quality.burstiness import compute_burstiness
 from src.quality.structural_scanner import scan_structural
@@ -231,6 +236,179 @@ def facts_add(claim: str, source: str, date: str):
     """Add a fact to the database."""
     console.print(f"[bold]Adding fact:[/bold] {claim}")
     console.print("[yellow]Facts database not yet implemented. See PR 14.[/yellow]")
+
+
+@cli.group()
+def dist():
+    """Content distribution commands."""
+
+
+@dist.command(name="run")
+@click.argument("file", type=click.Path(exists=True))
+def dist_run(file: str):
+    """Distribute an article to all platforms."""
+    api = DistributionAPI()
+    console.print(f"[bold]Distributing:[/bold] {file}")
+    state = asyncio.run(api.distribute(file))
+
+    console.print(f"[green bold]Distribution created:[/green bold] {state.run_id}")
+
+    table = Table(title="Platform Status")
+    table.add_column("Platform")
+    table.add_column("Status")
+    table.add_column("Warnings")
+    table.add_column("Content Preview")
+
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps:
+            warn_count = len(ps.validation_warnings)
+            warn_str = f"[yellow]{warn_count}[/yellow]" if warn_count > 0 else "[green]0[/green]"
+            preview = ps.content[:80].replace("\n", " ") + "..." if len(ps.content) > 80 else ps.content.replace("\n", " ")
+            table.add_row(platform.value, f"[green]{ps.status}[/green]", warn_str, preview)
+
+    console.print(table)
+
+    # Show warnings if any
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps and ps.validation_warnings:
+            console.print(f"\n[yellow bold]{platform.value} warnings:[/yellow bold]")
+            for w in ps.validation_warnings:
+                console.print(f"  - {w}")
+
+
+@dist.command(name="status")
+@click.argument("run_id", required=False)
+def dist_status(run_id: str | None):
+    """Show distribution status."""
+    api = DistributionAPI()
+
+    if run_id:
+        state = api.get_status(run_id)
+        _print_dist_status(state)
+    else:
+        states = api.list_distributions()
+        if not states:
+            console.print("[dim]No distributions found.[/dim]")
+            return
+        for state in states[:5]:
+            _print_dist_status(state)
+            console.print()
+
+
+def _print_dist_status(state):
+    table = Table(title=f"Distribution: {state.run_id}")
+    table.add_column("Platform")
+    table.add_column("Status")
+    table.add_column("Scheduled")
+    table.add_column("Published")
+    table.add_column("Warnings")
+
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps:
+            sched = ps.scheduled_at.strftime("%Y-%m-%d %H:%M") if ps.scheduled_at else "-"
+            pub = ps.published_at.strftime("%Y-%m-%d %H:%M") if ps.published_at else "-"
+            warn_count = len(ps.validation_warnings)
+            status_color = {"ready": "green", "scheduled": "blue", "published": "cyan"}.get(ps.status, "white")
+            table.add_row(
+                platform.value,
+                f"[{status_color}]{ps.status}[/{status_color}]",
+                sched,
+                pub,
+                str(warn_count) if warn_count else "[green]0[/green]",
+            )
+
+    console.print(table)
+    console.print(f"  [dim]Article: {state.article_path}[/dim]")
+    console.print(f"  [dim]Created: {state.created_at.strftime('%Y-%m-%d %H:%M')}[/dim]")
+
+
+@dist.command(name="edit")
+@click.argument("run_id")
+@click.option("--platform", "-p", required=True, type=click.Choice([p.value for p in Platform]))
+def dist_edit(run_id: str, platform: str):
+    """Edit platform content in $EDITOR, revalidate on save."""
+    api = DistributionAPI()
+    plat = Platform(platform)
+    state = api.get_status(run_id)
+
+    ps = state.platforms.get(plat)
+    if not ps:
+        console.print(f"[red]Platform {platform} not found in {run_id}[/red]")
+        return
+
+    editor = os.environ.get("EDITOR", "vim")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=f"_{platform}.md", delete=False) as f:
+        f.write(ps.content)
+        tmp_path = f.name
+
+    subprocess.run([editor, tmp_path])
+
+    new_content = Path(tmp_path).read_text()
+    os.unlink(tmp_path)
+
+    if new_content == ps.content:
+        console.print("[dim]No changes made.[/dim]")
+        return
+
+    warnings = api.edit_content(run_id, plat, new_content)
+    if warnings:
+        console.print(f"[yellow bold]Validation warnings after edit:[/yellow bold]")
+        for w in warnings:
+            console.print(f"  - {w}")
+    else:
+        console.print(f"[green]Content updated and validated for {platform}.[/green]")
+
+
+@dist.command(name="publish")
+@click.argument("run_id")
+@click.option("--platform", "-p", type=click.Choice([p.value for p in Platform]))
+def dist_publish(run_id: str, platform: str | None):
+    """Publish to a platform (Telegram=auto, others=clipboard+browser)."""
+    api = DistributionAPI()
+    state = api.get_status(run_id)
+
+    platforms_to_publish = [Platform(platform)] if platform else list(Platform)
+
+    for plat in platforms_to_publish:
+        ps = state.platforms.get(plat)
+        if not ps:
+            continue
+        if ps.status == PublishStatus.PUBLISHED:
+            console.print(f"[dim]{plat.value}: already published[/dim]")
+            continue
+
+        if plat == Platform.TELEGRAM:
+            console.print(f"[bold]{plat.value}:[/bold] Telegram auto-publish not yet configured. Use clipboard.")
+            _clipboard_publish(plat, ps.content)
+        else:
+            _clipboard_publish(plat, ps.content)
+
+
+def _clipboard_publish(platform: Platform, content: str):
+    """Copy content to clipboard and open platform URL."""
+    platform_urls = {
+        Platform.SUBSTACK: "https://substack.com/home",
+        Platform.SUBSTACK_NOTES: "https://substack.com/notes",
+        Platform.X: "https://x.com/compose/post",
+        Platform.LINKEDIN: "https://www.linkedin.com/feed/",
+        Platform.TELEGRAM: "https://web.telegram.org/",
+    }
+
+    try:
+        subprocess.run(["pbcopy"], input=content.encode(), check=True)
+        console.print(f"  [green]Copied {platform.value} content to clipboard[/green]")
+    except FileNotFoundError:
+        console.print(f"  [yellow]pbcopy not available — content not copied[/yellow]")
+
+    url = platform_urls.get(platform)
+    if url:
+        try:
+            subprocess.run(["open", url], check=True)
+        except FileNotFoundError:
+            console.print(f"  [dim]Open: {url}[/dim]")
 
 
 def _status(passed: bool) -> str:
