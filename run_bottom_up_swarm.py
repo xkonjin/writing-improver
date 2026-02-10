@@ -18,7 +18,7 @@ async def main():
     print(f"Started: {datetime.now().isoformat()}\n")
     
     # Initialize swarm with API key
-    api_key = "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"
+    api_key = "your-openrouter-api-key-here"
     swarm = OpenRouterSwarm(api_key=api_key)
     
     # Define the research target

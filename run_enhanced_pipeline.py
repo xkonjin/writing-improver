@@ -10,7 +10,7 @@ import json
 import random
 from typing import List, Dict, Any
 
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "your-openrouter-api-key-here"
 
 # Model pool for diversity
 RESEARCH_MODELS = [

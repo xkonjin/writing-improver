@@ -10,6 +10,11 @@ phases:
     model: claude-sonnet-4-5-20250929
     parallelizable: false
 
+  - name: falsification
+    description: "Stress-test thesis via sequential falsification"
+    model: claude-sonnet-4-5-20250929
+    parallelizable: false
+
   - name: forced_impasse
     description: "Remove load-bearing assumption (Tier 2+)"
     model: claude-opus-4-6
@@ -20,8 +25,18 @@ phases:
     model: claude-opus-4-6
     parallelizable: false
 
+  - name: bisociation
+    description: "Cross-domain structural mapping (Koestler)"
+    model: claude-opus-4-6
+    parallelizable: true
+
+  - name: inversion
+    description: "Munger inversion — reverse every key claim"
+    model: claude-opus-4-6
+    parallelizable: true
+
   - name: bisociate
-    description: "Foreign-domain parallels (Tier 2+)"
+    description: "Foreign-domain parallels (Tier 2+ legacy)"
     model: claude-opus-4-6
     tier_minimum: 2
 
@@ -66,10 +81,25 @@ phases:
     model: python
     parallelizable: true
 
+  - name: surprise_scan
+    description: "Automated non-obviousness detection"
+    model: python
+    parallelizable: true
+
+  - name: compression_scan
+    description: "Information density and Kolmogorov compression check"
+    model: python
+    parallelizable: true
+
   - name: revision
     description: "Rewrite flagged sections"
     model: claude-opus-4-6
     max_iterations: 3
+
+  - name: image_gen
+    description: "Header image via Gemini Nano Banana Pro"
+    model: gemini-3-pro-image-preview
+    parallelizable: true
 
   - name: platform_format
     description: "Newsletter, LinkedIn, X thread"
