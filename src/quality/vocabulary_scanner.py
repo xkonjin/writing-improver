@@ -70,9 +70,10 @@ def scan_vocabulary(text: str) -> VocabScanResult:
     if total_words == 0:
         return result
 
-    # Banned words
+    # Banned words (word-boundary matching to avoid substring false positives)
     for word in BANNED_WORDS:
-        if word.lower() in text_lower:
+        pattern = re.compile(r"\b" + re.escape(word.lower()) + r"\b")
+        if pattern.search(text_lower):
             result.banned_word_count += 1
             result.banned_words_found.append(word)
 

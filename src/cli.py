@@ -1,4 +1,7 @@
 import asyncio
+import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import click
@@ -6,6 +9,9 @@ from rich.console import Console
 from rich.table import Table
 
 from src.config import load_pipeline_config, load_quality_thresholds
+from src.distribution.api import DistributionAPI
+from src.distribution.clipboard import clipboard_publish as _do_clipboard_publish
+from src.distribution.state import Platform, PublishStatus
 from src.orchestrator import PipelineOrchestrator
 from src.quality.burstiness import compute_burstiness
 from src.quality.structural_scanner import scan_structural
@@ -29,7 +35,8 @@ def cli():
     default=1,
     help="Pipeline tier (1=quick, 2=deep, 3=maximum)",
 )
-def run(topic: str, tier: int):
+@click.option("--distribute", is_flag=True, help="Auto-distribute after pipeline completes")
+def run(topic: str, tier: int, distribute: bool):
     """Run the full content pipeline on a topic."""
     config = load_pipeline_config()
     tier_info = config["tiers"][tier]
@@ -55,6 +62,18 @@ def run(topic: str, tier: int):
             table.add_row(k, f"{v:.1f}")
         console.print(table)
 
+    if distribute:
+        # Find the saved article path from the content store
+        store = ContentStore()
+        runs = store.list_runs()
+        if runs:
+            latest = runs[0]
+            article_path = latest.get("article_path", "")
+            if article_path:
+                console.print(f"\n[bold]Distributing:[/bold] {article_path}")
+                dist_result = asyncio.run(orch.run_distribute(article_path))
+                console.print(f"[green]Distribution created: {dist_result['run_id']}[/green]")
+
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=True))
@@ -62,10 +81,16 @@ def scan(file: str):
     """Run quality scanners on a draft."""
     text = Path(file).read_text()
     thresholds = load_quality_thresholds()
+    st = thresholds.get("structural", {})
+    anti = thresholds.get("anti_ai", {})
+    voice = thresholds.get("voice", {})
 
     structural = scan_structural(text)
     vocab = scan_vocabulary(text)
     burstiness = compute_burstiness(text)
+
+    s_score = structural.score(st)
+    v_score = vocab.score(thresholds)
 
     table = Table(title=f"Quality Scan: {file}")
     table.add_column("Metric")
@@ -73,64 +98,60 @@ def scan(file: str):
     table.add_column("Status")
 
     # Structural metrics
-    table.add_row(
-        "Structural Score",
-        f"{structural.score(thresholds):.1f}/10",
-        _status(structural.score(thresholds) >= 7),
-    )
+    table.add_row("Structural Score", f"{s_score:.1f}/10", _status(s_score >= 7))
     table.add_row(
         "Sentence Length CV",
         f"{structural.sentence_length_cv:.2f}",
-        _status(structural.sentence_length_cv >= 0.35),
+        _status(structural.sentence_length_cv >= st.get("sentence_length_cv", {}).get("min", 0.35)),
     )
     table.add_row(
         "Paragraph Word Std",
         f"{structural.paragraph_word_std:.1f}",
-        _status(structural.paragraph_word_std >= 35),
+        _status(structural.paragraph_word_std >= st.get("paragraph_word_std", {}).get("min", 20)),
     )
     table.add_row(
         "Single-Sentence Paras",
         str(structural.single_sentence_paragraphs),
-        _status(structural.single_sentence_paragraphs >= 3),
+        _status(structural.single_sentence_paragraphs >= st.get("single_sentence_paragraphs", {}).get("min", 3)),
     )
     table.add_row(
         "Formal Transitions/1k",
         f"{structural.formal_transitions_per_1k:.1f}",
-        _status(structural.formal_transitions_per_1k <= 2.5),
+        _status(structural.formal_transitions_per_1k <= st.get("formal_transitions_per_1k", {}).get("max", 2.5)),
     )
     table.add_row(
         "Section Ratio",
         f"{structural.section_ratio:.1f}",
-        _status(2.0 <= structural.section_ratio <= 5.0),
+        _status(
+            st.get("section_ratio", {}).get("min", 2.0)
+            <= structural.section_ratio
+            <= st.get("section_ratio", {}).get("max", 12.0)
+        ),
     )
 
     # Vocabulary metrics
-    table.add_row(
-        "Vocabulary Score",
-        f"{vocab.score(thresholds):.1f}/10",
-        _status(vocab.score(thresholds) >= 7),
-    )
+    table.add_row("Vocabulary Score", f"{v_score:.1f}/10", _status(v_score >= 7))
     table.add_row(
         "Banned Words",
         str(vocab.banned_word_count),
-        _status(vocab.banned_word_count == 0),
+        _status(vocab.banned_word_count <= anti.get("banned_words", {}).get("max", 2)),
     )
     table.add_row(
         "Conjunction Starts",
         str(vocab.conjunction_starts),
-        _status(vocab.conjunction_starts >= 5),
+        _status(vocab.conjunction_starts >= voice.get("conjunction_starts", {}).get("min", 5)),
     )
     table.add_row(
         "Fragments",
         str(vocab.fragment_count),
-        _status(vocab.fragment_count >= 3),
+        _status(vocab.fragment_count >= voice.get("fragments", {}).get("min", 1)),
     )
 
     # Burstiness
     table.add_row(
         "Burstiness",
         f"{burstiness:.2f}",
-        _status(burstiness >= 0.5),
+        _status(burstiness >= anti.get("burstiness_score", {}).get("min", 0.3)),
     )
 
     console.print(table)
@@ -229,6 +250,171 @@ def facts_add(claim: str, source: str, date: str):
     """Add a fact to the database."""
     console.print(f"[bold]Adding fact:[/bold] {claim}")
     console.print("[yellow]Facts database not yet implemented. See PR 14.[/yellow]")
+
+
+@cli.group()
+def dist():
+    """Content distribution commands."""
+
+
+@dist.command(name="run")
+@click.argument("file", type=click.Path(exists=True))
+def dist_run(file: str):
+    """Distribute an article to all platforms."""
+    api = DistributionAPI()
+    console.print(f"[bold]Distributing:[/bold] {file}")
+    state = asyncio.run(api.distribute(file))
+
+    console.print(f"[green bold]Distribution created:[/green bold] {state.run_id}")
+
+    table = Table(title="Platform Status")
+    table.add_column("Platform")
+    table.add_column("Status")
+    table.add_column("Warnings")
+    table.add_column("Content Preview")
+
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps:
+            warn_count = len(ps.validation_warnings)
+            warn_str = f"[yellow]{warn_count}[/yellow]" if warn_count > 0 else "[green]0[/green]"
+            raw = ps.content.replace("\n", " ")
+            preview = raw[:80] + "..." if len(raw) > 80 else raw
+            table.add_row(platform.value, f"[green]{ps.status}[/green]", warn_str, preview)
+
+    console.print(table)
+
+    # Show warnings if any
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps and ps.validation_warnings:
+            console.print(f"\n[yellow bold]{platform.value} warnings:[/yellow bold]")
+            for w in ps.validation_warnings:
+                console.print(f"  - {w}")
+
+
+@dist.command(name="status")
+@click.argument("run_id", required=False)
+def dist_status(run_id: str | None):
+    """Show distribution status."""
+    api = DistributionAPI()
+
+    if run_id:
+        state = api.get_status(run_id)
+        _print_dist_status(state)
+    else:
+        states = api.list_distributions()
+        if not states:
+            console.print("[dim]No distributions found.[/dim]")
+            return
+        for state in states[:5]:
+            _print_dist_status(state)
+            console.print()
+
+
+def _print_dist_status(state):
+    table = Table(title=f"Distribution: {state.run_id}")
+    table.add_column("Platform")
+    table.add_column("Status")
+    table.add_column("Scheduled")
+    table.add_column("Published")
+    table.add_column("Warnings")
+
+    for platform in Platform:
+        ps = state.platforms.get(platform)
+        if ps:
+            sched = ps.scheduled_at.strftime("%Y-%m-%d %H:%M") if ps.scheduled_at else "-"
+            pub = ps.published_at.strftime("%Y-%m-%d %H:%M") if ps.published_at else "-"
+            warn_count = len(ps.validation_warnings)
+            status_color = {"ready": "green", "scheduled": "blue", "published": "cyan"}.get(ps.status, "white")
+            table.add_row(
+                platform.value,
+                f"[{status_color}]{ps.status}[/{status_color}]",
+                sched,
+                pub,
+                str(warn_count) if warn_count else "[green]0[/green]",
+            )
+
+    console.print(table)
+    console.print(f"  [dim]Article: {state.article_path}[/dim]")
+    console.print(f"  [dim]Created: {state.created_at.strftime('%Y-%m-%d %H:%M')}[/dim]")
+
+
+@dist.command(name="edit")
+@click.argument("run_id")
+@click.option("--platform", "-p", required=True, type=click.Choice([p.value for p in Platform]))
+def dist_edit(run_id: str, platform: str):
+    """Edit platform content in $EDITOR, revalidate on save."""
+    api = DistributionAPI()
+    plat = Platform(platform)
+    state = api.get_status(run_id)
+
+    ps = state.platforms.get(plat)
+    if not ps:
+        console.print(f"[red]Platform {platform} not found in {run_id}[/red]")
+        return
+
+    editor = os.environ.get("EDITOR", "vim")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=f"_{platform}.md", delete=False) as f:
+        f.write(ps.content)
+        tmp_path = f.name
+
+    subprocess.run([editor, tmp_path])
+
+    new_content = Path(tmp_path).read_text()
+    os.unlink(tmp_path)
+
+    if new_content == ps.content:
+        console.print("[dim]No changes made.[/dim]")
+        return
+
+    warnings = api.edit_content(run_id, plat, new_content)
+    if warnings:
+        console.print("[yellow bold]Validation warnings after edit:[/yellow bold]")
+        for w in warnings:
+            console.print(f"  - {w}")
+    else:
+        console.print(f"[green]Content updated and validated for {platform}.[/green]")
+
+
+@dist.command(name="publish")
+@click.argument("run_id")
+@click.option("--platform", "-p", type=click.Choice([p.value for p in Platform]))
+def dist_publish(run_id: str, platform: str | None):
+    """Publish to a platform (Telegram=auto, others=clipboard+browser)."""
+    api = DistributionAPI()
+    state = api.get_status(run_id)
+
+    platforms_to_publish = [Platform(platform)] if platform else list(Platform)
+
+    for plat in platforms_to_publish:
+        ps = state.platforms.get(plat)
+        if not ps:
+            continue
+        if ps.status == PublishStatus.PUBLISHED:
+            console.print(f"[dim]{plat.value}: already published[/dim]")
+            continue
+
+        if plat == Platform.TELEGRAM:
+            console.print(f"[bold]{plat.value}:[/bold] Telegram auto-publish not yet configured. Use clipboard.")
+            _clipboard_publish(plat, ps.content)
+        else:
+            _clipboard_publish(plat, ps.content)
+
+
+def _clipboard_publish(platform: Platform, content: str):
+    """Copy content to clipboard and open platform URL."""
+    clip, browser = _do_clipboard_publish(platform, content)
+    if clip:
+        console.print(f"  [green]Copied {platform.value} content to clipboard[/green]")
+    else:
+        console.print("  [yellow]pbcopy not available — content not copied[/yellow]")
+    if not browser:
+        from src.distribution.clipboard import PLATFORM_URLS
+
+        url = PLATFORM_URLS.get(platform, "")
+        if url:
+            console.print(f"  [dim]Open: {url}[/dim]")
 
 
 def _status(passed: bool) -> str:

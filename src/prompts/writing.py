@@ -34,9 +34,11 @@ RULE 4 — THEORY INTRODUCTION:
 
 RULE 5 — SECTION LENGTH ASYMMETRY:
 - Longest section explores most uncertain/surprising material
-- Ratio longest:shortest = 2.5-4.5:1
+- Ratio longest:shortest = 2.5-4.5:1 (MUST exceed 2.0)
+- The evidence/analysis section should be at least 2.5x the conclusion
 - Predictions compressed: 100-160 words max
 - Solutions minimal or absent: under 100 words
+- CONCRETE: if your shortest section is ~120 words, longest must be 300+
 
 RULE 6 — PERSONAL VOICE:
 - 1 self-reference per 190-210 words
@@ -44,11 +46,12 @@ RULE 6 — PERSONAL VOICE:
 - 30% past-tense investigation ("I spent the week")
 - 10% uncertainty admission ("I don't know", "I can't tell yet")
 
-RULE 7 — PARAGRAPH LENGTH VARIATION:
-- Shortest: 1-2 sentences, 9-21 words
-- Longest: 7-9 sentences, 140-165 words
+RULE 7 — PARAGRAPH LENGTH VARIATION (paragraph_word_std must exceed 20):
+- Shortest: 1-2 sentences, 5-15 words (fragments count)
+- Longest: 7-9 sentences, 120-170 words (at least ONE per article)
 - At least 3 single-sentence paragraphs per article
 - Variation is clustered: groups of short, then sustained long
+- CONCRETE: include at least one paragraph under 10 words and one over 120 words
 
 RULE 8 — DATA INTRODUCTION STYLE:
 - 60% direct integration: "In 2024, Circle paid Coinbase $908 million"

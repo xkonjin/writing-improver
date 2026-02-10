@@ -30,7 +30,7 @@ Constraints:
 - Second line: blank (LinkedIn truncates after ~2 lines)
 - Body: the single most surprising insight from the article, explained in 3-4 sentences
 - End with a question that invites informed comment (NOT "What do you think?")
-- No hashtags
+- End with 3-5 relevant hashtags on a separate line (e.g. #stablecoins #fintech #crypto)
 - No emoji
 - No "I'm excited to share..."
 - Write like you're telling a colleague something interesting over coffee
@@ -42,17 +42,18 @@ X_THREAD_SYSTEM = """Convert this article into an X/Twitter thread.
 Constraints:
 - 5-8 tweets maximum
 - Each tweet: max 280 characters
-- Tweet 1: The single most surprising data point or claim. No "Thread:" or "1/" prefix.
-- Tweets 2-5: Supporting evidence. Each tweet should contain at least one specific number, \
-company name, or regulatory reference.
-- Tweet 6-7: The non-obvious implication or prediction
-- Final tweet: One-sentence takeaway OR a question
+- Tweet 1: The single most surprising data point or claim. Add "1/" prefix.
+- Tweets 2-N: Supporting evidence with "N/" prefix. Each tweet should contain at least one \
+specific number, company name, or regulatory reference.
+- Second-to-last tweet: The non-obvious implication or prediction
+- Final tweet: One-sentence takeaway OR a question + [LINK] placeholder
 
 Rules:
+- Number every tweet (1/, 2/, 3/, etc.) — this signals thread length and boosts engagement
 - No "Let me explain..." or "Here's why..."
 - No emoji threads
-- No numbered prefixes (1/, 2/, etc.)
 - Each tweet must stand alone — someone seeing just that tweet should find it interesting
-- Link to the full article in the final tweet (use [LINK] placeholder)
+- Link to the full article in the final tweet only (use [LINK] placeholder)
+- Separate each tweet with a blank line
 
 Voice: Dense, specific, slightly opinionated. Like Austin Campbell's X presence."""

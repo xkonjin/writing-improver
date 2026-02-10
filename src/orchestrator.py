@@ -6,13 +6,18 @@ from typing import Any
 from src.agents.base import AgentUsage
 from src.agents.debate import DebateAgent
 from src.agents.disorder import DisorderAgent
+from src.agents.falsification import SocraticEngine, SocraticResult
+from src.agents.image_gen import ImageGenAgent
 from src.agents.insight import InsightPipeline
 from src.agents.publisher import PublisherAgent
 from src.agents.research import ResearchAgent
 from src.agents.writer import WriterAgent
 from src.config import load_pipeline_config, load_quality_thresholds
+from src.distribution.api import DistributionAPI
 from src.quality.burstiness import compute_burstiness
+from src.quality.compression_scanner import scan_compression
 from src.quality.structural_scanner import scan_structural
+from src.quality.surprise_detector import detect_surprise
 from src.quality.vocabulary_scanner import scan_vocabulary
 from src.storage.content_store import ContentStore
 
@@ -83,6 +88,24 @@ class PipelineOrchestrator:
         )
         return insight
 
+    async def run_socratic(
+        self, mechanism: str, predictions: str, anomalies: str, research: str
+    ) -> SocraticResult:
+        """Run falsification + inversion + bisociation stress-tests."""
+        self.state.current_phase = "socratic"
+        engine = SocraticEngine()
+        result = await engine.stress_test(mechanism, predictions, anomalies, research)
+        self.state.phase_outputs["socratic"] = {
+            "falsification": result.falsification.raw_output,
+            "inversion": result.inversion.raw_output,
+            "bisociation": result.bisociation.raw_output,
+            "survival_score": result.falsification.survival_score,
+            "passed": result.passed,
+        }
+        self._add_usage(result.usage)
+        self.state.completed_phases.append("socratic")
+        return result
+
     async def run_debate(self, research: str, anomalies: str) -> str:
         if self._should_skip("debate"):
             return ""
@@ -119,10 +142,18 @@ class PipelineOrchestrator:
         structural = scan_structural(article)
         vocab = scan_vocabulary(article)
         burstiness = compute_burstiness(article)
+        surprise = detect_surprise(article)
+        compression = scan_compression(article)
 
-        gate.scores["structural"] = structural.score(self.thresholds)
+        gate.scores["structural"] = structural.score(
+            self.thresholds.get("structural", {})
+        )
         gate.scores["vocabulary"] = vocab.score(self.thresholds)
         gate.scores["burstiness"] = burstiness
+        gate.scores["surprise"] = round(surprise.overall, 2)
+        gate.scores["compression"] = compression.score(
+            self.thresholds.get("compression", {})
+        )
 
         # Check structural thresholds
         st = self.thresholds.get("structural", {})
@@ -163,6 +194,30 @@ class PipelineOrchestrator:
                     f"< {voice['fragments']['min']}"
                 )
 
+        # Check surprise thresholds
+        surprise_t = self.thresholds.get("surprise", {})
+        if "overall" in surprise_t:
+            if surprise.overall < surprise_t["overall"].get("min", 0.5):
+                gate.failures.append(
+                    f"surprise_overall={surprise.overall:.2f} "
+                    f"< {surprise_t['overall']['min']}"
+                )
+        for issue in surprise.issues:
+            gate.failures.append(f"surprise: {issue}")
+
+        # Check compression thresholds
+        compression_t = self.thresholds.get("compression", {})
+        if compression.zero_info_transitions > compression_t.get("zero_info_transitions_max", 3):
+            gate.failures.append(
+                f"zero_info_transitions={compression.zero_info_transitions} "
+                f"> {compression_t.get('zero_info_transitions_max', 3)}"
+            )
+        if compression.filler_phrases > compression_t.get("filler_phrases_max", 3):
+            gate.failures.append(
+                f"filler_phrases={compression.filler_phrases} "
+                f"> {compression_t.get('filler_phrases_max', 3)}"
+            )
+
         gate.passed = len(gate.failures) == 0
         self.state.scores = gate.scores
         self.state.completed_phases.append("quality_scan")
@@ -188,6 +243,23 @@ class PipelineOrchestrator:
         self.state.completed_phases.append("revision")
         return current
 
+    async def run_image_gen(self, title: str, article: str) -> str:
+        """Generate a header image for the article."""
+        self.state.current_phase = "image_gen"
+        agent = ImageGenAgent()
+        output_dir = self.store.base_dir / "images"
+        result = await agent.run(title, article, output_dir)
+        self.state.phase_outputs["image"] = {
+            "path": result.image_path,
+            "content_type": result.content_type,
+            "style": result.style,
+            "prompt": result.prompt_used,
+            "model": result.model_used,
+        }
+        self._add_usage(result.usage)
+        self.state.completed_phases.append("image_gen")
+        return result.image_path
+
     async def run_publish(self, article: str) -> dict[str, str]:
         self.state.current_phase = "platform_format"
         agent = PublisherAgent()
@@ -196,6 +268,8 @@ class PipelineOrchestrator:
             "newsletter": result.newsletter,
             "linkedin": result.linkedin,
             "x_thread": result.x_thread,
+            "substack_notes": result.substack_notes,
+            "telegram": result.telegram,
         }
         self.state.phase_outputs["publish"] = output
         self._add_usage(result.usage)
@@ -211,10 +285,35 @@ class PipelineOrchestrator:
         # Phase 2: Insight generation
         insight = await self.run_insight(research)
 
-        # Phase 3: Debate (tier 3 only)
+        # Phase 3: Socratic stress-test (falsification + inversion + bisociation)
+        insight_result = self.state.phase_outputs.get("insight", "")
+        # Extract mechanism and predictions from insight output
+        mechanism = ""
+        predictions = ""
+        anomalies = ""
+        if isinstance(insight_result, str):
+            for section in insight_result.split("## "):
+                if section.startswith("Mechanism"):
+                    mechanism = section
+                elif section.startswith("Predictions"):
+                    predictions = section
+                elif section.startswith("Anomalies"):
+                    anomalies = section
+
+        socratic = await self.run_socratic(mechanism, predictions, anomalies, research)
+        if not socratic.passed:
+            # Enrich insight with Socratic findings even if thesis is weak
+            insight += (
+                f"\n\n## Socratic Stress-Test (survival={socratic.falsification.survival_score:.2f})\n"
+                f"{socratic.falsification.raw_output[:2000]}\n\n"
+                f"## Inversion Findings\n{socratic.inversion.raw_output[:2000]}\n\n"
+                f"## Cross-Domain Bisociation\n{socratic.bisociation.raw_output[:2000]}"
+            )
+
+        # Phase 4: Debate (tier 3 only)
         await self.run_debate(research, insight)
 
-        # Phase 4: DISORDER
+        # Phase 5: DISORDER
         outline = await self.run_disorder(research, insight)
 
         # Phase 5: Write
@@ -227,8 +326,13 @@ class PipelineOrchestrator:
         if not gate.passed:
             article = await self.run_revision(article, gate.failures)
 
-        # Phase 8: Platform formatting
-        await self.run_publish(article)
+        # Phase 8: Image generation + Platform formatting (parallel)
+        import asyncio
+
+        await asyncio.gather(
+            self.run_image_gen(topic, article),
+            self.run_publish(article),
+        )
 
         # Save outputs
         cost = self.state.usage.estimated_cost("claude-opus-4-6")
@@ -242,3 +346,16 @@ class PipelineOrchestrator:
         )
 
         return self.state
+
+    async def run_distribute(self, article_path: str) -> dict:
+        """Run distribution pipeline on an existing article file.
+
+        Returns dict with run_id and platform statuses.
+        """
+        api = DistributionAPI()
+        state = await api.distribute(article_path)
+        self.state.phase_outputs["distribution"] = {
+            "run_id": state.run_id,
+            "platforms": {p.value: ps.status for p, ps in state.platforms.items()},
+        }
+        return {"run_id": state.run_id, "state": state}

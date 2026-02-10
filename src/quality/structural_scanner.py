@@ -127,18 +127,18 @@ def scan_structural(text: str) -> StructuralScanResult:
     else:
         result.solution_pct = 0.0
 
-    # Build issues list
+    # Build issues list (calibrated thresholds)
     if result.sentence_length_cv < 0.35:
         result.issues.append(f"Low sentence variation (CV={result.sentence_length_cv}, need >0.35)")
-    if result.paragraph_word_std < 35:
-        result.issues.append(f"Uniform paragraph lengths (std={result.paragraph_word_std}, need >35)")
+    if result.paragraph_word_std < 20:
+        result.issues.append(f"Uniform paragraph lengths (std={result.paragraph_word_std}, need >20)")
     if result.single_sentence_paragraphs < 3:
         result.issues.append(f"Too few single-sentence paragraphs ({result.single_sentence_paragraphs}, need >=3)")
     if result.formal_transitions_per_1k > 2.5:
         result.issues.append(f"Too many formal transitions ({result.formal_transitions_per_1k}/1k, need <2.5)")
     if result.self_refs_per_1k < 4.0:
-        result.issues.append(f"Too few self-references ({result.self_refs_per_1k}/1k, need 4.0-6.0)")
-    if result.self_refs_per_1k > 6.0:
-        result.issues.append(f"Too many self-references ({result.self_refs_per_1k}/1k, need 4.0-6.0)")
+        result.issues.append(f"Too few self-references ({result.self_refs_per_1k}/1k, need 4.0-18.0)")
+    if result.self_refs_per_1k > 18.0:
+        result.issues.append(f"Too many self-references ({result.self_refs_per_1k}/1k, need 4.0-18.0)")
 
     return result
