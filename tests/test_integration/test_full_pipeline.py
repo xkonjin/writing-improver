@@ -106,17 +106,44 @@ def mock_all_agents():
         input_tokens=1000, output_tokens=2000, calls=3
     )
 
+    # Socratic engine
+    socratic_result = MagicMock()
+    socratic_result.falsification = MagicMock(
+        survival_score=0.8, raw_output="Thesis survives"
+    )
+    socratic_result.inversion = MagicMock(raw_output="Inversion findings")
+    socratic_result.bisociation = MagicMock(raw_output="Cross-domain findings")
+    socratic_result.passed = True
+    socratic_result.usage = MagicMock(
+        input_tokens=2000, output_tokens=3000, calls=3
+    )
+
+    # Image gen
+    image_result = MagicMock()
+    image_result.image_path = "/tmp/test_header.jpg"
+    image_result.content_type = "REGULATORY"
+    image_result.style = "Art Deco institutional"
+    image_result.prompt_used = "Art Deco test prompt"
+    image_result.usage = MagicMock(
+        input_tokens=500, output_tokens=200, calls=2
+    )
+
     with (
         patch("src.orchestrator.ResearchAgent") as mock_research,
         patch("src.orchestrator.InsightPipeline") as mock_insight,
+        patch("src.orchestrator.SocraticEngine") as mock_socratic,
         patch("src.orchestrator.DisorderAgent") as mock_disorder,
         patch("src.orchestrator.WriterAgent") as mock_writer,
         patch("src.orchestrator.PublisherAgent") as mock_publisher,
+        patch("src.orchestrator.ImageGenAgent") as mock_image,
     ):
         mock_research.return_value.run_all_tracks = AsyncMock(
             return_value=research_result
         )
         mock_insight.return_value.run = AsyncMock(return_value=insight_result)
+        mock_socratic.return_value.stress_test = AsyncMock(
+            return_value=socratic_result
+        )
         mock_disorder.return_value.disorder = AsyncMock(
             return_value=disorder_result
         )
@@ -131,12 +158,15 @@ def mock_all_agents():
         mock_publisher.return_value.format_all = AsyncMock(
             return_value=publish_result
         )
+        mock_image.return_value.run = AsyncMock(return_value=image_result)
 
         patches["research"] = mock_research
         patches["insight"] = mock_insight
+        patches["socratic"] = mock_socratic
         patches["disorder"] = mock_disorder
         patches["writer"] = mock_writer
         patches["publisher"] = mock_publisher
+        patches["image"] = mock_image
         yield patches
 
 
@@ -202,3 +232,17 @@ async def test_pipeline_publishes_all_formats(mock_all_agents, tmp_path: Path):
     assert "newsletter" in publish
     assert "linkedin" in publish
     assert "x_thread" in publish
+
+
+@pytest.mark.asyncio
+async def test_pipeline_generates_image(mock_all_agents, tmp_path: Path):
+    orch = PipelineOrchestrator(tier=1)
+    orch.store.base_dir = tmp_path / "output"
+
+    state = await orch.run_full("Test Topic")
+
+    assert "image_gen" in state.completed_phases
+    image = state.phase_outputs.get("image", {})
+    assert image["content_type"] == "REGULATORY"
+    assert image["style"] == "Art Deco institutional"
+    assert image["path"] == "/tmp/test_header.jpg"

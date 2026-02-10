@@ -72,6 +72,31 @@ voice:
     min: 2
     description: "Argument direction changes"
 
+surprise:
+  levine_score:
+    min: 0.4
+    description: "Theory-reality gap specificity (gap indicators + specificity markers)"
+  first_principles_score:
+    min: 0.4
+    description: "Surprising without domain jargon (low framework templates)"
+  bidirectional_score:
+    min: 0.3
+    description: "Asymmetric surprise (direction changes present)"
+  falsification_score:
+    min: 0.4
+    description: "Claims have specific entities + timeframes for disproof"
+  overall:
+    min: 0.5
+    description: "Average of all four surprise tests"
+
+compression:
+  lexical_density_min: 0.50
+  zero_info_transitions_max: 3
+  redundancy_max: 2
+  specificity_ratio_min: 2.0
+  filler_phrases_max: 3
+  description: "Information density and Kolmogorov compression quality"
+
 data_integrity:
   stats_with_dates: true
   claims_with_sources: true

@@ -90,7 +90,7 @@ Create `.env` and `.env.local` files with:
 
 ```bash
 # Required for OpenRouter multi-agent swarm
-OPENROUTER_API_KEY=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
+OPENROUTER_API_KEY=your-openrouter-api-key-here
 
 # Optional for other integrations
 ANTHROPIC_API_KEY=your-api-key-here
