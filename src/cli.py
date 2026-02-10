@@ -10,6 +10,7 @@ from rich.table import Table
 
 from src.config import load_pipeline_config, load_quality_thresholds
 from src.distribution.api import DistributionAPI
+from src.distribution.clipboard import clipboard_publish as _do_clipboard_publish
 from src.distribution.state import Platform, PublishStatus
 from src.orchestrator import PipelineOrchestrator
 from src.quality.burstiness import compute_burstiness
@@ -34,7 +35,8 @@ def cli():
     default=1,
     help="Pipeline tier (1=quick, 2=deep, 3=maximum)",
 )
-def run(topic: str, tier: int):
+@click.option("--distribute", is_flag=True, help="Auto-distribute after pipeline completes")
+def run(topic: str, tier: int, distribute: bool):
     """Run the full content pipeline on a topic."""
     config = load_pipeline_config()
     tier_info = config["tiers"][tier]
@@ -59,6 +61,18 @@ def run(topic: str, tier: int):
         for k, v in state.scores.items():
             table.add_row(k, f"{v:.1f}")
         console.print(table)
+
+    if distribute:
+        # Find the saved article path from the content store
+        store = ContentStore()
+        runs = store.list_runs()
+        if runs:
+            latest = runs[0]
+            article_path = latest.get("article_path", "")
+            if article_path:
+                console.print(f"\n[bold]Distributing:[/bold] {article_path}")
+                dist_result = asyncio.run(orch.run_distribute(article_path))
+                console.print(f"[green]Distribution created: {dist_result['run_id']}[/green]")
 
 
 @cli.command()
@@ -264,7 +278,8 @@ def dist_run(file: str):
         if ps:
             warn_count = len(ps.validation_warnings)
             warn_str = f"[yellow]{warn_count}[/yellow]" if warn_count > 0 else "[green]0[/green]"
-            preview = ps.content[:80].replace("\n", " ") + "..." if len(ps.content) > 80 else ps.content.replace("\n", " ")
+            raw = ps.content.replace("\n", " ")
+            preview = raw[:80] + "..." if len(raw) > 80 else raw
             table.add_row(platform.value, f"[green]{ps.status}[/green]", warn_str, preview)
 
     console.print(table)
@@ -355,7 +370,7 @@ def dist_edit(run_id: str, platform: str):
 
     warnings = api.edit_content(run_id, plat, new_content)
     if warnings:
-        console.print(f"[yellow bold]Validation warnings after edit:[/yellow bold]")
+        console.print("[yellow bold]Validation warnings after edit:[/yellow bold]")
         for w in warnings:
             console.print(f"  - {w}")
     else:
@@ -389,25 +404,16 @@ def dist_publish(run_id: str, platform: str | None):
 
 def _clipboard_publish(platform: Platform, content: str):
     """Copy content to clipboard and open platform URL."""
-    platform_urls = {
-        Platform.SUBSTACK: "https://substack.com/home",
-        Platform.SUBSTACK_NOTES: "https://substack.com/notes",
-        Platform.X: "https://x.com/compose/post",
-        Platform.LINKEDIN: "https://www.linkedin.com/feed/",
-        Platform.TELEGRAM: "https://web.telegram.org/",
-    }
-
-    try:
-        subprocess.run(["pbcopy"], input=content.encode(), check=True)
+    clip, browser = _do_clipboard_publish(platform, content)
+    if clip:
         console.print(f"  [green]Copied {platform.value} content to clipboard[/green]")
-    except FileNotFoundError:
-        console.print(f"  [yellow]pbcopy not available — content not copied[/yellow]")
+    else:
+        console.print("  [yellow]pbcopy not available — content not copied[/yellow]")
+    if not browser:
+        from src.distribution.clipboard import PLATFORM_URLS
 
-    url = platform_urls.get(platform)
-    if url:
-        try:
-            subprocess.run(["open", url], check=True)
-        except FileNotFoundError:
+        url = PLATFORM_URLS.get(platform, "")
+        if url:
             console.print(f"  [dim]Open: {url}[/dim]")
 
 

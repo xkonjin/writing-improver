@@ -1,0 +1,39 @@
+schedule:
+  # Post timing relative to article publish (day 0)
+  substack:
+    day_offset: 0
+    time: "09:00"
+    timezone: "America/New_York"
+  substack_notes:
+    day_offset: 0
+    time: "11:00"
+    timezone: "America/New_York"
+  x:
+    day_offset: 0
+    time: "12:00"
+    timezone: "America/New_York"
+  linkedin:
+    day_offset: 1
+    time: "08:00"
+    timezone: "America/New_York"
+  telegram:
+    day_offset: 0
+    time: "10:00"
+    timezone: "America/New_York"
+
+platforms:
+  substack:
+    enabled: true
+    publish_method: clipboard
+  substack_notes:
+    enabled: true
+    publish_method: clipboard
+  x:
+    enabled: true
+    publish_method: clipboard
+  linkedin:
+    enabled: true
+    publish_method: clipboard
+  telegram:
+    enabled: true
+    publish_method: api

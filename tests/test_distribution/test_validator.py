@@ -117,7 +117,11 @@ class TestValidateTelegram:
 
 class TestValidateNewsletter:
     def test_valid_subject(self):
-        content = "TITLE_A: Something\nPREVIEW: This is a perfectly good subject line for email ok\nBODY:\nArticle here."
+        content = (
+            "TITLE_A: Something\n"
+            "PREVIEW: A perfectly good test subject line for emails\n"
+            "BODY:\nArticle here."
+        )
         warnings = validate_newsletter(content)
         assert len(warnings) == 0
 

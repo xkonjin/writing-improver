@@ -13,6 +13,7 @@ from src.agents.publisher import PublisherAgent
 from src.agents.research import ResearchAgent
 from src.agents.writer import WriterAgent
 from src.config import load_pipeline_config, load_quality_thresholds
+from src.distribution.api import DistributionAPI
 from src.quality.burstiness import compute_burstiness
 from src.quality.compression_scanner import scan_compression
 from src.quality.structural_scanner import scan_structural
@@ -345,3 +346,16 @@ class PipelineOrchestrator:
         )
 
         return self.state
+
+    async def run_distribute(self, article_path: str) -> dict:
+        """Run distribution pipeline on an existing article file.
+
+        Returns dict with run_id and platform statuses.
+        """
+        api = DistributionAPI()
+        state = await api.distribute(article_path)
+        self.state.phase_outputs["distribution"] = {
+            "run_id": state.run_id,
+            "platforms": {p.value: ps.status for p, ps in state.platforms.items()},
+        }
+        return {"run_id": state.run_id, "state": state}

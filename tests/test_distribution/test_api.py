@@ -94,7 +94,7 @@ async def test_edit_content(tmp_path):
 
             # Edit LinkedIn content
             new_content = "New hook line\n\nNew body text.\n\n#stablecoins"
-            warnings = api.edit_content(state.run_id, Platform.LINKEDIN, new_content)
+            api.edit_content(state.run_id, Platform.LINKEDIN, new_content)
 
             # Reload and check
             updated = api.get_status(state.run_id)

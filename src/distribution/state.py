@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -71,8 +71,14 @@ class DistributionState:
             platforms[platform] = PlatformStatus(
                 status=PublishStatus(status_dict["status"]),
                 content=status_dict["content"],
-                scheduled_at=datetime.fromisoformat(status_dict["scheduled_at"]) if status_dict.get("scheduled_at") else None,
-                published_at=datetime.fromisoformat(status_dict["published_at"]) if status_dict.get("published_at") else None,
+                scheduled_at=(
+                    datetime.fromisoformat(status_dict["scheduled_at"])
+                    if status_dict.get("scheduled_at") else None
+                ),
+                published_at=(
+                    datetime.fromisoformat(status_dict["published_at"])
+                    if status_dict.get("published_at") else None
+                ),
                 published_url=status_dict.get("published_url"),
                 validation_warnings=status_dict.get("validation_warnings", []),
             )

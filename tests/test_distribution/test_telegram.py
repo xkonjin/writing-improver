@@ -2,7 +2,6 @@
 
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 
 from src.distribution.telegram import TelegramPublisher

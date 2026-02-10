@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+import yaml
 
 from src.agents.publisher import PublisherAgent
 from src.distribution.state import (
@@ -17,6 +18,7 @@ from src.distribution.state import (
 from src.distribution.validator import validate_all
 
 DIST_DIR = Path("output") / "distributions"
+DIST_CONFIG = Path("config") / "distribution.yaml"
 
 
 def _generate_run_id(article_path: str) -> str:
@@ -115,6 +117,42 @@ class DistributionAPI:
 
         state.save(_state_path(run_id))
         return platform_warnings
+
+    def schedule(self, run_id: str, publish_date: datetime | None = None) -> DistributionState:
+        """Apply schedule offsets from config to a distribution run.
+
+        Args:
+            run_id: Distribution run ID.
+            publish_date: Base publish date (defaults to now).
+
+        Returns:
+            Updated state with scheduled_at times set.
+        """
+        state = self.get_status(run_id)
+        base = publish_date or datetime.now(UTC)
+        schedule = self._load_schedule()
+
+        for platform, ps in state.platforms.items():
+            sched = schedule.get(platform.value, {})
+            day_offset = sched.get("day_offset", 0)
+            time_str = sched.get("time", "09:00")
+            hour, minute = (int(x) for x in time_str.split(":"))
+
+            target = base.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=day_offset)
+            ps.scheduled_at = target
+            if ps.status == PublishStatus.READY:
+                ps.status = PublishStatus.SCHEDULED
+
+        state.save(_state_path(run_id))
+        return state
+
+    def _load_schedule(self) -> dict:
+        """Load schedule config from YAML."""
+        if DIST_CONFIG.exists():
+            with open(DIST_CONFIG) as f:
+                config = yaml.safe_load(f)
+            return config.get("schedule", {})
+        return {}
 
     def list_distributions(self) -> list[DistributionState]:
         """List all distribution states."""
