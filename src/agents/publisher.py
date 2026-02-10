@@ -1,8 +1,10 @@
 """Platform-specific formatting agents."""
 
+import asyncio
 from dataclasses import dataclass, field
 
 from src.agents.base import AgentUsage, BaseAgent
+from src.prompts.distribution import SUBSTACK_NOTES_SYSTEM, TELEGRAM_SYSTEM
 from src.prompts.platform_format import (
     LINKEDIN_SYSTEM,
     NEWSLETTER_SYSTEM,
@@ -15,6 +17,8 @@ class PublisherResult:
     newsletter: str = ""
     linkedin: str = ""
     x_thread: str = ""
+    substack_notes: str = ""
+    telegram: str = ""
     usage: AgentUsage = field(default_factory=AgentUsage)
 
 
@@ -53,18 +57,40 @@ class PublisherAgent:
         self._add_usage(agent)
         return result
 
-    async def format_all(self, article: str) -> PublisherResult:
-        import asyncio
+    async def format_substack_notes(self, article: str) -> str:
+        agent = BaseAgent(model=self.model)
+        result = await agent.call(
+            SUBSTACK_NOTES_SYSTEM,
+            f"Write a Substack Notes post for this article:\n\n{article}",
+            max_tokens=512,
+        )
+        self._add_usage(agent)
+        return result
 
-        newsletter, linkedin, x_thread = await asyncio.gather(
+    async def format_telegram(self, article: str) -> str:
+        agent = BaseAgent(model=self.model)
+        result = await agent.call(
+            TELEGRAM_SYSTEM,
+            f"Write a Telegram channel caption for this article:\n\n{article}",
+            max_tokens=512,
+        )
+        self._add_usage(agent)
+        return result
+
+    async def format_all(self, article: str) -> PublisherResult:
+        newsletter, linkedin, x_thread, substack_notes, telegram = await asyncio.gather(
             self.format_newsletter(article),
             self.format_linkedin(article),
             self.format_x_thread(article),
+            self.format_substack_notes(article),
+            self.format_telegram(article),
         )
         return PublisherResult(
             newsletter=newsletter,
             linkedin=linkedin,
             x_thread=x_thread,
+            substack_notes=substack_notes,
+            telegram=telegram,
             usage=self.usage,
         )
 
