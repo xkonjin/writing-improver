@@ -84,8 +84,45 @@ Calibrated against 3 human-written articles (02, 03, 04).
 
 ## Configuration
 
+### Environment Variables
+
+Create `.env` and `.env.local` files with:
+
+```bash
+# Required for OpenRouter multi-agent swarm
+OPENROUTER_API_KEY=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
+
+# Optional for other integrations
+ANTHROPIC_API_KEY=your-api-key-here
+GEMINI_KEY=your-gemini-key
+X_API_KEY=your-x-api-key
+X_API_KEY_SECRET=your-x-secret
+X_BEARER_TOKEN=your-x-bearer-token
+```
+
+### Config Files
+
 - `config/pipeline.yaml` — phases, model assignments, tier definitions
 - `config/quality_thresholds.yaml` — quality gate thresholds (calibrated)
+
+## OpenRouter Multi-Agent Swarm
+
+Run bottom-up research with diverse models:
+
+```bash
+python run_bottom_up_swarm.py
+```
+
+This executes:
+1. **Research Swarm**: 5-7 specialized agents (Data Archaeologist, Mechanism Hunter, Pattern Breaker, etc.)
+2. **Model Diversity**: Claude, GPT-4, Llama, Mistral, DeepSeek via OpenRouter
+3. **Synthesis Competition**: Multiple approaches compete for best insight
+4. **Voice Editing**: Multi-pass editing to remove AI tells
+
+Outputs:
+- `content/10-swarm-research.md` (raw agent findings)
+- `content/10-swarm-synthesis.md` (synthesis output)  
+- `content/10-coinbase-bottom-up-final.md` (final article)
 
 ## Development
 
