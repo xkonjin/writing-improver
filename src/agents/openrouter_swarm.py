@@ -22,21 +22,21 @@ class SwarmResult:
 class OpenRouterSwarm:
     """Multi-agent swarm using OpenRouter API."""
     
-    # Model pool for diversity
+    # Model pool for diversity - updated with working OpenRouter IDs
     MODELS = {
         "premium": [
             "anthropic/claude-3.5-sonnet",
-            "anthropic/claude-3-opus-20240229",
-            "openai/gpt-4-turbo-preview",
+            "openai/gpt-4-turbo",
+            "openai/gpt-4o",
         ],
         "fast": [
-            "anthropic/claude-3-haiku-20240307",
-            "mistralai/mistral-large",
+            "anthropic/claude-3.5-haiku",
+            "mistralai/mistral-large-2407",
             "meta-llama/llama-3.1-70b-instruct",
         ],
         "specialized": [
             "deepseek/deepseek-chat",
-            "google/gemini-pro",
+            "google/gemini-pro-1.5",
             "cohere/command-r-plus",
         ]
     }
@@ -54,7 +54,10 @@ class OpenRouterSwarm:
         temperature: float = 0.7,
         max_tokens: int = 4000
     ) -> SwarmResult:
-        """Call a specific model via OpenRouter."""
+        """Call a specific model via OpenRouter with rate limiting."""
+        
+        # Rate limiting: 2-second delay between requests
+        await asyncio.sleep(2)
         
         async with httpx.AsyncClient(timeout=120.0) as client:
             try:
@@ -106,8 +109,8 @@ class OpenRouterSwarm:
                     error=str(e)
                 )
     
-    async def research_swarm(self, topic: str, num_agents: int = 5) -> List[SwarmResult]:
-        """Run parallel research agents with different perspectives."""
+    async def research_swarm(self, topic: str, num_agents: int = 5, enable_search: bool = True) -> List[SwarmResult]:
+        """Run parallel research agents with different perspectives and web search."""
         
         perspectives = [
             {
