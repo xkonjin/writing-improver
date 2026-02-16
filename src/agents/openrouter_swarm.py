@@ -25,22 +25,20 @@ class OpenRouterSwarm:
     # Model pool for diversity - updated with latest 2026 models
     MODELS = {
         "premium": [
-            "anthropic/claude-opus-4.5",  # Latest Opus model
-            "moonshotai/kimi-k2.5",       # New frontier model - beats Opus on many tasks
-            "openai/gpt-5.2",              # Latest GPT model
             "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4-turbo",
+            "anthropic/claude-3-opus",
         ],
         "fast": [
-            "deepseek/deepseek-v3.2",      # 1/100th cost of frontier models
             "anthropic/claude-3.5-haiku",
-            "mistralai/mistral-large-2407",
+            "mistralai/mistral-large-2407", 
             "meta-llama/llama-3.1-70b-instruct",
+            "deepseek/deepseek-v2.5",
         ],
         "specialized": [
-            "google/gemini-3-pro",          # Latest Gemini
-            "minimax/m2.1",                 # Specialized for agents
+            "google/gemini-pro-1.5",
             "cohere/command-r-plus",
-            "devstral/devstral-2",          # Code-specialized
+            "anthropic/claude-3.5-sonnet",
         ]
     }
     

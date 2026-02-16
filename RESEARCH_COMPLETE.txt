@@ -1,0 +1,80 @@
+RESEARCH COMPLETE: First-Principles Approaches to Insight Generation
+
+Generated: February 16, 2026
+Repository: /Users/001/Dev/writing-improver/research/
+
+FILES CREATED:
+
+1. first-principles-insight-generation-methodologies.md
+   → 9 frameworks from academia, hedge funds, journalism, cognitive science
+   → Core principle: Genuine insight = data-driven + falsifiable + mechanistic + surprising + high Kolmogorov complexity
+   → 5,000+ words of synthesized research
+
+2. applying-methodologies-to-writing-pipeline.md
+   → Tactical integration with your existing SATURATE → DISORDER → DRAFT → SCAN → EDIT pipeline
+   → Enhanced multi-agent swarm design (agents mapped to Munger's 6 mental models)
+   → Pre-publishing checklist
+   → 4,000+ words of implementation guidance
+
+3. first-principles-case-studies.md
+   → Analysis of your Articles 02-06 showing implicit framework usage
+   → Why Article 06 works (all frameworks + personal experience as anti-AI shield)
+   → Why Article 04 felt AI-like despite passing metrics
+   → Why Article 05 (unpublished) failed novelty test
+   → 3,500+ words of diagnostic analysis
+
+4. frameworks-quick-reference.md
+   → One-page lookup table (9 frameworks at a glance)
+   → 6-Model Saturation Checklist
+   → Falsification Worksheet
+   → Novelty Test (data-driven vs. framework-applied)
+   → Surprise Validation Checklist
+   → Kolmogorov Compression Gate
+   → Pre-publication checklist
+   → Diagnostic lookup ("The article feels obvious" → apply X framework)
+
+5. RESEARCH_SUMMARY.md
+   → Overview of all research documents
+   → 5-Phase Insight Validation Gauntlet
+   → Key findings + how to use this research
+   → Full source citations
+
+TOTAL: ~17,000 words of research synthesis
+
+KEY FINDINGS:
+
+Methodology          | Phase in Your Pipeline      | Implementation
+--------------------|----------------------------|------------------
+Munger Latticework   | SATURATE                   | Assign agents to 6 mental models (psychology, economics, history, regulation, mechanism, inversion)
+Falsificationism     | DISORDER                   | Explicit falsification phase: state thesis falsifiably, list breaking conditions, actively seek counter-evidence
+Feynman Technique    | DRAFT                      | Mechanism clarity gate: explain each claim in 2 sentences without jargon
+Novelty Testing      | SYNTHESIS                  | Data-driven (thesis collapses if data removed) vs. framework-applied (could reach by theory alone)
+Surprise Validation  | STRUCTURAL SCAN            | Genuine mismatch (hippocampus triggers) vs. manufactured (announced as surprising)
+Kolmogorov          | FINAL REVISION              | State core insight in <50 words or rewrite
+Bridgewater Disagreement | NEW PHASE              | Devil's advocate review: strongest counter-argument documented
+Renaissance Pattern  | SATURATE → IDENTIFY ANOMALIES | What patterns in data would human miss?
+Academic Novelty     | SYNTHESIS                  | Remove any single data point and thesis weakens = novel
+
+YOUR ARTICLE 06 WORKS BECAUSE:
+- All frameworks present (implicit)
+- Personal experience grounds mechanism (unfakeable)
+- Thesis collapses if Runescape→Poloniex→BCH→Boryoku data removed
+- Genuinely surprising (readers expect top-down marketing, get bottom-up narration)
+- Falsifiable (documented from trader interviews)
+- Can explain without jargon (narratives create coordination → floor-price protection)
+- Kolmogorov-dense (specific communities, specific events, specific mechanism)
+
+IMMEDIATE NEXT STEPS:
+
+1. Read: applying-methodologies-to-writing-pipeline.md (implementation guide)
+2. Implement: Map agents to Munger's 6 models in next swarm run
+3. Add: Falsification phase after DISORDER
+4. Test: Run one new article through enhanced pipeline
+5. Compare: Metrics on falsifiability, mechanism clarity, novelty vs. current pipeline
+
+All documents are in:
+/Users/001/Dev/writing-improver/research/
+
+Start with RESEARCH_SUMMARY.md for overview.
+Use frameworks-quick-reference.md during drafting.
+Refer to case-studies.md when diagnosing why an article feels AI-like.
